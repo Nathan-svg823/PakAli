@@ -34,6 +34,13 @@ body.opened .envwrap{animation:none}
 @keyframes fall{0%{opacity:0;transform:translate3d(0,0,0) rotate(0)}10%{opacity:.85}100%{opacity:0;transform:translate3d(var(--dx),108vh,0) rotate(var(--rot))}}
 .hrt{position:absolute;bottom:-20px;font-size:22px;color:#b7795a;opacity:0;animation:up 2.8s ease-out forwards}
 @keyframes up{0%{opacity:0;transform:translateY(0) scale(.6)}15%{opacity:.95}100%{opacity:0;transform:translateY(-70vh) scale(1.2)}}
+/* tulisan mengetik */
+.w{display:inline-block;white-space:nowrap}
+.c{opacity:0;transition:opacity .35s ease}
+.c.on{opacity:1}
+.c.cur{box-shadow:2px 0 0 #334764}
+.skip{position:fixed;bottom:16px;right:14px;z-index:60;display:none;font:16px 'Patrick Hand',cursive;color:#334764;background:#f8f3e9ee;border:1px solid #9a8f7e;border-radius:30px;padding:9px 16px;cursor:pointer;box-shadow:0 4px 14px #3a2f2018}
+.skip.show{display:block}
 /* musik */
 .yt{position:fixed;bottom:0;left:0;width:2px;height:2px;opacity:.01;border:0;pointer-events:none}
 .mbtn{position:fixed;top:14px;right:14px;z-index:60;width:44px;height:44px;border-radius:50%;border:1px solid #9a8f7e;background:#f8f3e9ee;display:none;align-items:center;justify-content:center;gap:3px;cursor:pointer;box-shadow:0 4px 14px #3a2f2018}
@@ -47,6 +54,7 @@ body.opened .envwrap{animation:none}
 </style></head><body>
 <button class="mbtn" id="mbtn" aria-label="Putar atau jeda musik" onclick="toggleMusic(event)"><i></i><i></i><i></i></button>
 <div class="fx" id="fx"></div>
+<button class="skip" id="skip" onclick="skip=true">Lewati ✎</button>
 
 <section class="scene"><div class="wrap"><div class="kicker">25 NOVEMBER · HARI GURU</div><h1>Sebuah surat untuk Pak Ali</h1><p class="sub">Ada pesan kecil yang ingin kami sampaikan...</p>
 <div class="art">
@@ -125,13 +133,55 @@ function openLetter(){
     reveal();
   },1100);
 }
-function reveal(){
-  var els=document.querySelectorAll('.rv');
-  if(!('IntersectionObserver' in window)){els.forEach(function(x){x.classList.add('in')});return}
-  var io=new IntersectionObserver(function(es){es.forEach(function(en){
-    if(en.isIntersecting){en.target.classList.add('in');io.unobserve(en.target)}
-  })},{threshold:.35});
-  els.forEach(function(x){io.observe(x)});
+var skip=false;
+function wait(ms){return new Promise(function(r){setTimeout(r,ms)})}
+function wrapChars(el){
+  var tw=document.createTreeWalker(el,NodeFilter.SHOW_TEXT),nodes=[],n,chars=[];
+  while(n=tw.nextNode())nodes.push(n);
+  nodes.forEach(function(t){
+    var frag=document.createDocumentFragment();
+    t.nodeValue.split(/(\s+)/).forEach(function(part){
+      if(!part)return;
+      if(/^\s+$/.test(part)){frag.appendChild(document.createTextNode(part));return}
+      var w=document.createElement('span');w.className='w';
+      for(var i=0;i<part.length;i++){var c=document.createElement('span');c.className='c';c.textContent=part[i];w.appendChild(c);chars.push(c)}
+      frag.appendChild(w);
+    });
+    t.parentNode.replaceChild(frag,t);
+  });
+  return chars;
+}
+function follow(c){
+  var r=c.getBoundingClientRect();
+  if(r.bottom>innerHeight*0.72)window.scrollBy({top:r.bottom-innerHeight*0.5,behavior:'smooth'});
+}
+function finish(){
+  skip=true;
+  document.querySelectorAll('#message .rv').forEach(function(x){x.classList.add('in')});
+  document.querySelectorAll('#message .c').forEach(function(x){x.classList.add('on');x.classList.remove('cur')});
+  document.getElementById('skip').classList.remove('show');
+}
+async function reveal(){
+  var els=Array.prototype.slice.call(document.querySelectorAll('#message .rv'));
+  var items=els.map(function(el){return {el:el,chars:el.matches('p,h2,.quote')?wrapChars(el):null}});
+  if(window.matchMedia&&matchMedia('(prefers-reduced-motion:reduce)').matches){finish();return}
+  document.getElementById('skip').classList.add('show');
+  var prev=null;
+  for(var k=0;k<items.length&&!skip;k++){
+    var it=items[k];it.el.classList.add('in');
+    if(!it.chars){await wait(700);continue}
+    await wait(350);
+    for(var i=0;i<it.chars.length&&!skip;i++){
+      var c=it.chars[i];
+      if(prev)prev.classList.remove('cur');
+      c.classList.add('on','cur');prev=c;
+      if(i%8===0)follow(c);
+      var ch=c.textContent;
+      await wait(/[.!?]/.test(ch)?320:/[,:;]/.test(ch)?160:24+Math.random()*22);
+    }
+    await wait(450);
+  }
+  finish();
 }
 function sendLove(){
   var b=document.getElementById('heart');if(b.classList.contains('done'))return;
